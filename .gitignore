@@ -1,0 +1,36 @@
+# Poetry / Virtualenv
+.venv/
+
+# Environment variables
+.env
+*/.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing / Linting
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# SQL / DB / Workbench
+*.sql
+*.mwb
+
+# JSON files
+*.json
+
+# Custom data formats
+*.data
+*.item
+
+# OS
+.DS_Store
+
+# # Downloaded data
+# datasets/cifar-10-batches-py/*
+# datasets/MNIST/*
