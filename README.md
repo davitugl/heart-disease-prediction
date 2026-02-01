@@ -4,3 +4,7 @@ This project aims to predict the presence of **heart disease** using a clinical 
 
 ## Dataset from Kaggle
 **Link:** (https://www.kaggle.com/datasets/fedesoriano/heart-failure-prediction)
+
+
+## Live Report
+(https://davitugl.github.io/heart-disease-prediction/)
