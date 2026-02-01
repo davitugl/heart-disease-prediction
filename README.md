@@ -5,6 +5,20 @@ This project aims to predict the presence of **heart disease** using a clinical 
 ## Dataset from Kaggle
 **Link:** (https://www.kaggle.com/datasets/fedesoriano/heart-failure-prediction)
 
+## Install Dependencies
+Inside the project directory, install all dependencies using Poetry:
+
+```bash
+poetry install
+```
+## Run the Marimo notebook:
+
+```bash
+poetry run marimo edit notebooks/heart_disease_classification.py
+```
+
 
 ## Live Report
 (https://davitugl.github.io/heart-disease-prediction/)
+
+
