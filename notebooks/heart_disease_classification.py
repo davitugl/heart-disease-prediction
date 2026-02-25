@@ -6,34 +6,42 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
-    # IMPORTING LIBRARIES
+    # Data Processing and Visualization
     import marimo as mo
-
-    import pandas as pd
-    import numpy as np
-    import seaborn as sns
     import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
 
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay
-
-
+    # Sklearn: Model Selection and Preprocessing
+    from sklearn.compose import ColumnTransformer
+    from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, train_test_split
     from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.neighbors import KNeighborsClassifier
-    from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-    from sklearn.metrics import precision_recall_curve, roc_auc_score, roc_curve
-    return (
+    # Sklearn: Machine Learning Models
+    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.svm import SVC
+
+    # Sklearn: Metrics and Evaluation
+    from sklearn.metrics import (
         ConfusionMatrixDisplay,
+        classification_report,
+        confusion_matrix,
+        precision_recall_curve,
+        roc_auc_score,
+        roc_curve,
+    )
+    return (
+        ColumnTransformer,
+        GradientBoostingClassifier,
         GridSearchCV,
-        KNeighborsClassifier,
         LogisticRegression,
-        Pipeline,
+        OneHotEncoder,
         RandomForestClassifier,
-        RepeatedStratifiedKFold,
+        SVC,
         StandardScaler,
         classification_report,
         confusion_matrix,
@@ -42,7 +50,6 @@ def _():
         pd,
         plt,
         roc_auc_score,
-        roc_curve,
         sns,
         train_test_split,
     )
@@ -90,7 +97,7 @@ def _(heart_df, mo):
             heart_df,
             label="Anonymous Patient Data",
             selection=None,
-            pagination=True
+            pagination=True,
         )
     ])
     return
@@ -99,17 +106,16 @@ def _(heart_df, mo):
 @app.cell
 def _(heart_df, mo, pd):
     # DATA QUALITY & PROFILING
-    # Check for missing values and duplicates
+    # Check for missing values and duplicates, unique values
     missing_values = heart_df.isna().sum()
     duplicate_count = heart_df.duplicated().sum()
 
     mo.vstack([
-        mo.md("## 🔍 Data Quality Check"),
-        mo.md(f""" ### Duplicates: {duplicate_count}, Missing Values: {missing_values.sum()}"""),
-        pd.DataFrame({
-            "Data Type": heart_df.dtypes, 
-            "Null Count": missing_values
-        })
+        mo.md("## 🔍 Check Data Quality"),
+        mo.md(f""" ### Duplicates: {duplicate_count}"""),
+        mo.md(f""" ### Missing Values: {missing_values.sum()}"""),
+        mo.ui.table(pd.DataFrame({"Data Type": heart_df.dtypes.astype(str), "Unique Values": heart_df.nunique() 
+    }), selection=None)
     ])
     return
 
@@ -117,33 +123,35 @@ def _(heart_df, mo, pd):
 @app.cell
 def _(heart_df):
     # Drop duplicate rows
-    heart_df.drop_duplicates(inplace=True)
-    return
+    heart_df_clean = heart_df.drop_duplicates()
+    return (heart_df_clean,)
 
 
 @app.cell
-def _(heart_df, mo, pd, plt, sns):
+def _(heart_df_clean, mo, pd, plt, sns):
     # TARGET DISTRIBUTION
-    target_counts = heart_df['target'].value_counts()
-    target_percent = (heart_df['target'].value_counts(normalize=True) * 100).round(2).astype(str) + '%'
+    target_counts = heart_df_clean['target'].value_counts()
+    target_percent = (heart_df_clean['target'].value_counts(normalize=True) * 100).round(2).astype(str) + '%'
 
     target_summary = pd.DataFrame({
         "Count": target_counts,
         "Percentage": target_percent
     })
 
-    # PLOT CREATION
-    plt.figure(figsize=(5, 6))
-    sns.countplot(x='target', data=heart_df, palette=['#3498db', '#e74c3c'], hue='target')
-    plt.title("Visual Balance (0 vs 1)")
-    plt.xlabel("Diagnosis (0=Healthy, 1=Disease)")
-    plt.ylabel("Count")
+    # PLOT
+    fig, ax = plt.subplots(figsize=(5, 6))
+
+    sns.countplot(x='target', data=heart_df_clean, palette=['#3498db', '#e74c3c'], hue='target', ax=ax)
+
+    ax.set_title("Visual Balance (0 vs 1)")
+    ax.set_xlabel("Diagnosis (0=Healthy, 1=Disease)")
+    ax.set_ylabel("Count")
 
     mo.vstack([
         mo.md("## 🎯 Target Variable Distribution"),
         mo.hstack([
-            target_summary,        
-            plt.gca()
+            target_summary,
+            fig
         ], justify="start", gap=2)
     ])
     return
@@ -152,20 +160,21 @@ def _(heart_df, mo, pd, plt, sns):
 @app.cell
 def _(mo):
     mo.md("""
-    ### 🎯 Target Variable
-    * **Balanced Dataset:** The dataset is well-balanced (~54% Disease vs ~46% Healthy). This is excellent for training.
-    * **No Bias:** We don't need to apply complex resampling techniques (like SMOTE) because the model won't be biased toward one class.
+    ### 🎯 Target Variable Conclusion & Strategy
+    * **Balanced Dataset:** The dataset is well-balanced (~54% Disease vs ~46% Healthy). This is excellent for model training.
+    * **No Bias:** We don't need to apply complex resampling techniques (like SMOTE).
+    * **Evaluation Metric:** Our primary focus is **Recall**. In medical diagnostics, minimizing False Negatives (missing a sick patient) is far more critical than overall Accuracy.
     """)
     return
 
 
 @app.cell
-def _(heart_df, mo):
+def _(heart_df_clean, mo):
     # STATISTICAL SUMMARY
-    stats = heart_df.describe().T.round(2)
+    stats = heart_df_clean.describe().T.round(2)
     mo.vstack([
         mo.md("## 📊 Statistical Overview"),
-        stats
+        mo.ui.table(stats, selection=None)
     ])
     return
 
@@ -176,33 +185,34 @@ def _(mo):
     ### 📊 Stats
     * **Demographics:** The average patient age is **~54 years**, ranging from 29 to 77.
     * **Gender Imbalance:** The mean of `sex` is **0.68**, indicating that approximately **68%** of the dataset consists of male patients (assuming 1 = Male).
-    * **Potential Outliers:** * **Cholesterol (`chol`):** The max value is **564 mg/dl**, which is extremely high compared to the mean (246).
-    * **Blood Pressure (`trestbps`):** The max value reaches **200 mm Hg**, indicating hypertensive crisis cases.
+    * **Potential Outliers:**
+      * **Cholesterol (`chol`):** The max value is **564 mg/dl**, which is extremely high compared to the mean (246).
+      * **Blood Pressure (`trestbps`):** The max value reaches **200 mm Hg**, indicating hypertensive crisis cases.
     """)
     return
 
 
 @app.cell
-def _(heart_df, mo, plt, sns):
-    # CORRELATION MATRIX
-    corr_matrix = heart_df.corr()
+def _(heart_df_clean, mo, plt, sns):
+    # Correlation Matrix
+    corr_matrix = heart_df_clean.corr()
 
-    plt.figure(figsize=(10, 8))
+    _fig, _ax = plt.subplots(figsize=(10, 7))
 
     sns.heatmap(
         corr_matrix, 
         annot=True,         
         fmt=".2f",           
         cmap="coolwarm",     
-        linewidths=0.5    
+        linewidths=0.5,
+        ax=_ax 
     )
 
-    plt.title("Correlation Matrix of Heart Disease Features")
+    _ax.set_title("Correlation Matrix of Heart Disease Features", pad=20, fontsize=14, weight='bold')
 
-    # Display
     mo.vstack([
         mo.md("## 🌡️ Feature Correlation Analysis"),
-        plt.gca()
+        _fig
     ])
     return
 
@@ -219,32 +229,42 @@ def _(mo):
 
 
 @app.cell
-def _(heart_df, mo, pd, plt, sns):
-    # TARGET BY SEX
-    counts = pd.crosstab(heart_df['sex'], heart_df['target'])
-    percs = pd.crosstab(heart_df['sex'], heart_df['target'], normalize='index') * 100
-    sex_target = counts.astype(str) + " (" + percs.round(2).astype(str) + "%)"
+def _(heart_df_clean, mo, pd, plt, sns):
+    # Target By Sex
+    _counts = pd.crosstab(heart_df_clean['sex'], heart_df_clean['target'])
+    _percs = pd.crosstab(heart_df_clean['sex'], heart_df_clean['target'], normalize='index') * 100
 
-    sex_target['Total (N)'] = counts.sum(axis=1)
-    sex_target.index, sex_target.columns = ['Female', 'Male'], ['Healthy', 'Disease', 'Total (N)']
+    sex_target_summary = _counts.astype(str) + " (" + _percs.round(2).astype(str) + "%)"
+    sex_target_summary['Total (N)'] = _counts.sum(axis=1)
 
-    plt.figure(figsize=(6, 6))
-    ax_sex = sns.countplot(x='sex', hue='target', data=heart_df, palette=['#3498db', '#e74c3c'])
+    sex_target_summary.index = ['Female (0)', 'Male (1)']
+    sex_target_summary.columns = ['Healthy (0)', 'Disease (1)', 'Total (N)']
 
-    ax_sex.bar_label(ax_sex.containers[0], labels=sex_target['Healthy'], padding=3)
-    ax_sex.bar_label(ax_sex.containers[1], labels=sex_target['Disease'], padding=3)
+    _fig, _ax = plt.subplots(figsize=(7, 6))
 
-    plt.title("Heart Disease Frequency by Sex")
-    plt.xlabel("Sex (0 = Female, 1 = Male)")
-    plt.ylabel("Amount")
-    plt.legend(["Healthy", "Disease"])
+    sns.countplot(
+        x='sex', 
+        hue='target', 
+        data=heart_df_clean,
+        palette=['#3498db', '#e74c3c'], 
+        ax=_ax 
+    )
+
+    _ax.bar_label(_ax.containers[0], labels=sex_target_summary['Healthy (0)'], padding=3)
+    _ax.bar_label(_ax.containers[1], labels=sex_target_summary['Disease (1)'], padding=3)
+
+    _ax.set_title("Heart Disease Frequency by Sex", pad=15, weight='bold')
+    _ax.set_xlabel("Sex (0 = Female, 1 = Male)")
+    _ax.set_ylabel("Amount of Patients")
+    _ax.legend(["Healthy", "Disease"], title="Target")
+    sns.despine(ax=_ax)
 
     mo.vstack([
         mo.md("## 🚻 Heart Disease vs Sex"),
         mo.hstack([
-            sex_target,
-            plt.gca()
-        ], justify="start", gap=2)
+            mo.ui.table(sex_target_summary, selection=None),
+            _fig
+        ], justify="start", gap=4)
     ])
     return
 
@@ -262,42 +282,46 @@ def _(mo):
 
 
 @app.cell
-def _(heart_df, mo, pd, plt, sns):
+def _(heart_df_clean, mo, pd, plt, sns):
     # CHEST PAIN (CP) vs TARGET
-    cp_counts = pd.crosstab(heart_df['cp'], heart_df['target'])
-    cp_percs = pd.crosstab(heart_df['cp'], heart_df['target'], normalize='index') * 100
+    _cp_counts = pd.crosstab(heart_df_clean['cp'], heart_df_clean['target'])
+    _cp_percs = pd.crosstab(heart_df_clean['cp'], heart_df_clean['target'], normalize='index') * 100
 
-    label_healthy = cp_counts[0].astype(str) + " (" + cp_percs[0].round(1).astype(str) + "%)"
-    label_disease = cp_counts[1].astype(str) + " (" + cp_percs[1].round(1).astype(str) + "%)"
+    _label_healthy = _cp_counts[0].astype(str) + " (" + _cp_percs[0].round(1).astype(str) + "%)"
+    _label_disease = _cp_counts[1].astype(str) + " (" + _cp_percs[1].round(1).astype(str) + "%)"
 
     cp_summary_df = pd.DataFrame({
-        "Healthy (0)": label_healthy,
-        "Disease (1)": label_disease,
-        "Total (N)": cp_counts.sum(axis=1)
+        "Healthy (0)": _label_healthy,
+        "Disease (1)": _label_disease,
+        "Total (N)": _cp_counts.sum(axis=1)
     })
-
     cp_summary_df.index = ['Typical Angina (0)', 'Atypical Angina (1)', 'Non-anginal (2)', 'Asymptomatic (3)']
 
-    # PLOT 
-    plt.figure(figsize=(9, 8))
-    ax_cp = sns.countplot(x='cp', hue='target', data=heart_df, palette=['#9b59b6', '#e74c3c'])
+    _fig, _ax = plt.subplots(figsize=(9, 8))
+    sns.countplot(
+        x='cp', 
+        hue='target', 
+        data=heart_df_clean,
+        palette=['#9b59b6', '#e74c3c'],
+        ax=_ax              
+    )
 
-    ax_cp.bar_label(ax_cp.containers[0], labels=label_healthy, padding=3)
-    ax_cp.bar_label(ax_cp.containers[1], labels=label_disease, padding=3)
+    _ax.bar_label(_ax.containers[0], labels=_label_healthy, padding=3)
+    _ax.bar_label(_ax.containers[1], labels=_label_disease, padding=3)
 
-    plt.title("Heart Disease Rate by Chest Pain Type")
-    plt.xlabel("Chest Pain Type")
-    plt.ylabel("Count")
-    plt.legend(["Healthy", "Disease"], loc='upper left')
-    plt.ylim(0, 130)
+    _ax.set_title("Heart Disease Rate by Chest Pain Type", pad=15, weight='bold')
+    _ax.set_xlabel("Chest Pain Type")
+    _ax.set_ylabel("Count of Patients")
+    _ax.legend(["Healthy", "Disease"], title="Target", loc='upper left')
+    _ax.set_ylim(0, 130) 
+    sns.despine(ax=_ax) 
 
-    # MARIMO UI
     mo.vstack([
         mo.md("## 🫀 Chest Pain vs Target (Diagnosis)"),
         mo.hstack([
-            cp_summary_df,
-            plt.gca()
-        ], justify="start", gap=2)
+            mo.ui.table(cp_summary_df, selection=None),
+            _fig
+        ], justify="start", gap=4)
     ])
     return
 
@@ -315,31 +339,42 @@ def _(mo):
 
 
 @app.cell
-def _(heart_df, mo, plt, sns):
+def _(heart_df_clean, mo, plt, sns):
     # THALACH vs Target
-    thalach_stats = heart_df.groupby('target')['thalach'].describe()[['count', 'mean', '50%', 'max']]
+    _thalach_stats = heart_df_clean.groupby('target')['thalach'].describe()[['count', 'mean', '50%', 'max']]
 
-    thalach_stats.columns = ['Count', 'Mean (Average)', 'Median', 'Max Rate']
-    thalach_stats.index = ['Healthy (0)', 'Disease (1)']
-    thalach_stats = thalach_stats.round(1)
+    _thalach_stats.columns = ['Count', 'Mean (Average)', 'Median', 'Max Rate']
+    _thalach_stats.index = ['Healthy (0)', 'Disease (1)']
+    thalach_stats_df = _thalach_stats.round(1)
 
-    plt.figure(figsize=(10, 6))
+    _fig, _ax = plt.subplots(figsize=(10, 6))
 
-    sns.kdeplot(x='thalach', hue='target', data=heart_df, fill=True, palette=['green', 'red'], common_norm=False, alpha=0.3)
+    sns.kdeplot(
+        x='thalach', 
+        hue='target', 
+        data=heart_df_clean,
+        fill=True, 
+        palette=['#2ecc71', '#e74c3c'],
+        common_norm=False, 
+        alpha=0.4,
+        ax=_ax              
+    )
 
-    plt.axvline(thalach_stats.loc['Healthy (0)', 'Mean (Average)'], color='green', linestyle='--', label='Healthy Mean')
-    plt.axvline(thalach_stats.loc['Disease (1)', 'Mean (Average)'], color='red', linestyle='--', label='Disease Mean')
+    _ax.axvline(thalach_stats_df.loc['Healthy (0)', 'Mean (Average)'], color='#27ae60', linestyle='--', label='Healthy Mean', linewidth=2)
+    _ax.axvline(thalach_stats_df.loc['Disease (1)', 'Mean (Average)'], color='#c0392b', linestyle='--', label='Disease Mean', linewidth=2)
 
-    plt.title("Distribution of Max Heart Rate (thalach) by Target")
-    plt.xlabel("Max Heart Rate")
-    plt.legend(["Healthy", "Disease"])
+    _ax.set_title("Distribution of Max Heart Rate (thalach) by Diagnosis", pad=15, weight='bold')
+    _ax.set_xlabel("Maximum Heart Rate Achieved")
+    _ax.set_ylabel("Density (Probability)")
+    _ax.legend()
+    sns.despine(ax=_ax)
 
     mo.vstack([
         mo.md("## 💓 Max Heart Rate (thalach) Analysis"),
         mo.hstack([
-            thalach_stats,
-            plt.gca()
-        ], justify="start", gap=2)
+            mo.ui.table(thalach_stats_df, selection=None),
+            _fig
+        ], justify="start", gap=4)
     ])
     return
 
@@ -356,24 +391,41 @@ def _(mo):
 
 
 @app.cell
-def _(heart_df, mo, np, plt, sns):
+def _(heart_df_clean, mo, np, plt, sns):
     # AGE vs THALACH
-    plt.figure(figsize=(10, 6))
-    sns.scatterplot(x='age', y='thalach', data=heart_df, hue='target', palette=['blue', 'red'], alpha=0.7, s=70)
+    _fig, _ax = plt.subplots(figsize=(10, 6))
 
-    x_points = np.linspace(29, 77, 100)
-    y_points = 220 - x_points
-    plt.plot(x_points, y_points, color='grey', linestyle='--', label='Theoretical Max (220-Age)', alpha=0.5)
+    sns.scatterplot(
+        x='age', 
+        y='thalach', 
+        data=heart_df_clean,
+        hue='target', 
+        palette=['#3498db', '#e74c3c'],
+        alpha=0.7, 
+        s=70,
+        ax=_ax           
+    )
 
-    plt.title("Age vs Max Heart Rate: The Impact of Disease")
-    plt.xlabel("Age (Years)")
-    plt.ylabel("Max Heart Rate (thalach)")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    _x_points = np.linspace(heart_df_clean['age'].min(), heart_df_clean['age'].max(), 100)
+    _y_points = 220 - _x_points
+    _ax.plot(_x_points, _y_points, color='grey', linestyle='--', label='Theoretical Max (220-Age)', alpha=0.6, linewidth=2)
 
-    # MARIMO UI
+    _ax.set_title("Age vs Max Heart Rate: The Impact of Disease", pad=15, weight='bold')
+    _ax.set_xlabel("Age (Years)")
+    _ax.set_ylabel("Max Heart Rate (thalach)")
+
+    _handles, _labels = _ax.get_legend_handles_labels()
+
+    _clean_labels = ['Healthy (0)' if l == '0' else 'Disease (1)' if l == '1' else l for l in _labels]
+
+    _ax.legend(_handles, _clean_labels, bbox_to_anchor=(1.02, 0.5), loc='center left', borderaxespad=0.)
+
+    sns.despine(ax=_ax)
+    _fig.tight_layout()
+
     mo.vstack([
-        mo.md("## 📉 Age vs Heart Rate (Correlation Analysis)"),
-        plt.gca()
+        mo.md("## 📉 Age vs Heart Rate (Domain Knowledge)"),
+        _fig
     ])
     return
 
@@ -383,41 +435,49 @@ def _(mo):
     mo.md("""
     ### 📉 Age vs Max Heart Rate
     * **Natural Decline:** The plot clearly shows that as **Age increases**, the **Max Heart Rate decreases**. This follows the natural physiological trend (roughly $220 - Age$).
-    * **The "Risk Layer":** Notice the vertical separation. The **Disease (Red)** points tend to be positioned **higher** than the Healthy (Green) points across most ages.
+    * **The "Risk Layer":** Notice the vertical separation. The **Disease (Red)** points tend to be positioned **higher** than the Healthy (Blue) points across most ages.
     * **Combined Power:** While Age alone had a lot of overlap (as seen in the KDE plot), combining it with Heart Rate reveals a clearer pattern. A 60-year-old with a heart rate of 170 is much more likely to be in the "Disease" group than a 60-year-old with a heart rate of 130.
     """)
     return
 
 
 @app.cell
-def _(heart_df, mo, plt, sns):
+def _(heart_df_clean, mo, plt, sns):
     # AGE vs target
-    age_stats = heart_df.groupby('target')['age'].describe()[['count', 'mean', '50%', 'max']]
+    _age_stats = heart_df_clean.groupby('target')['age'].describe()[['count', 'mean', '50%', 'max']]
 
-    age_stats.columns = ['Count', 'Mean Age', 'Median', 'Oldest']
-    age_stats.index = ['Healthy (0)', 'Disease (1)']
-    age_stats = age_stats.round(1)
+    _age_stats.columns = ['Count', 'Mean Age', 'Median', 'Oldest']
+    _age_stats.index = ['Healthy (0)', 'Disease (1)']
+    age_stats_df = _age_stats.round(1)
 
-    # PLOT
-    plt.figure(figsize=(10, 6))
+    _fig, _ax = plt.subplots(figsize=(10, 6))
 
-    # Distribution
-    sns.kdeplot(x='age', hue='target', data=heart_df, fill=True, palette=['green', 'red'], common_norm=False, alpha=0.3)
+    sns.kdeplot(
+        x='age', 
+        hue='target', 
+        data=heart_df_clean,
+        fill=True, 
+        palette=['#2ecc71', '#e74c3c'],
+        common_norm=False, 
+        alpha=0.4,
+        ax=_ax         
+    )
 
-    plt.axvline(age_stats.loc['Healthy (0)', 'Mean Age'], color='green', linestyle='--', label='Healthy Mean')
-    plt.axvline(age_stats.loc['Disease (1)', 'Mean Age'], color='red', linestyle='--', label='Disease Mean')
+    _ax.axvline(age_stats_df.loc['Healthy (0)', 'Mean Age'], color='#27ae60', linestyle='--', label='Healthy Mean', linewidth=2)
+    _ax.axvline(age_stats_df.loc['Disease (1)', 'Mean Age'], color='#c0392b', linestyle='--', label='Disease Mean', linewidth=2)
 
-    plt.title("Age Distribution by Target (Diagnosis)")
-    plt.xlabel("Age (Years)")
-    plt.legend(["Healthy", "Disease"], loc='upper left')
+    _ax.set_title("Age Distribution by Diagnosis", pad=15, weight='bold')
+    _ax.set_xlabel("Age (Years)")
+    _ax.set_ylabel("Density")
+    _ax.legend() 
+    sns.despine(ax=_ax)
 
-    # MARIMO UI
     mo.vstack([
-        mo.md("## 🎂 Age Distribution"),
+        mo.md("## 🎂 Age Distribution Analysis"),
         mo.hstack([
-            age_stats,
-            plt.gca()
-        ], justify="start", gap=2)
+            mo.ui.table(age_stats_df, selection=None),
+            _fig
+        ], justify="start", gap=4)
     ])
     return
 
@@ -434,257 +494,307 @@ def _(mo):
 
 
 @app.cell
-def _(heart_df, mo, pd):
-    # PREPROCESSING: ONE-HOT ENCODING
-    # Copy original data
-    df_processed = heart_df.copy()
-    essential_cats = ['cp', 'thal', 'slope']
+def _(
+    ColumnTransformer,
+    OneHotEncoder,
+    StandardScaler,
+    heart_df_clean,
+    mo,
+    train_test_split,
+):
+    # Data Preprocessing Pipeline: Train/Test Split, Scaling, One-Hot Encoding (Preventing Data Leakage)
+    X = heart_df_clean.drop('target', axis=1)
+    y = heart_df_clean['target']
 
-    df_processed = pd.get_dummies(heart_df, columns=essential_cats, drop_first=True)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, 
+        test_size=0.2, 
+        random_state=42, 
+        stratify=y 
+    )
 
-    cols_old = heart_df.shape[1]
-    cols_new = df_processed.shape[1]
+    numeric_features = ['age', 'trestbps', 'chol', 'thalach', 'oldpeak']
+    categorical_features = ['cp', 'restecg', 'slope', 'ca', 'thal']
+    binary_features = ['sex', 'fbs', 'exang'] 
 
-    # MARIMO UI
-    mo.vstack([
-        mo.md(f"## 🛠️ Data Preprocessing: Encoding Applied"),
-        mo.ui.table(df_processed.head())
-    ])
-    return (df_processed,)
+    # ColumnTransformer
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', StandardScaler(), numeric_features),
+            ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), categorical_features),
+            ('bin', 'passthrough', binary_features)
+        ]
+    )
+
+    # Fit only on Train!
+    X_train_scaled = preprocessor.fit_transform(X_train)
+    X_test_scaled = preprocessor.transform(X_test)
+
+    mo.md(f"""
+    ### ⚙️ Data Preprocessing Pipeline!
+    * **Steps:** Train/Test Split -> StandardScaler -> OneHotEncoder
+    * **Training Data:** {X_train_scaled.shape}
+    * **Testing Data:** {X_test_scaled.shape}
+    """)
+    return X_test_scaled, X_train_scaled, preprocessor, y_test, y_train
 
 
 @app.cell
-def _(df_processed, mo, train_test_split):
-    # Split data into features (X) and target (y)
-    X = df_processed.drop('target', axis=1)
-    y = df_processed['target']
+def _(classification_report, confusion_matrix, mo, plt, roc_auc_score, sns):
+    # Create a universal function to evaluate any model!
+    def evaluate_model(model, name, X_train, X_test, y_train, y_test):
+        # Training (Fit)
+        model.fit(X_train, y_train)
 
-    # Split into Train/Test sets (80/20) with stratification to keep class proportions
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+        # Predict on Test set
+        y_pred = model.predict(X_test)
+        y_prob = model.predict_proba(X_test)[:, 1]
+
+        # Calculate statistics
+        roc_auc = roc_auc_score(y_test, y_prob)
+        report = classification_report(y_test, y_pred)
+
+        # Confusion Matrix
+        cm = confusion_matrix(y_test, y_pred)
+        _fig, _ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False, ax=_ax,
+                    xticklabels=['Predicted Healthy (0)', 'Predicted Disease (1)'], 
+                    yticklabels=['Actual Healthy (0)', 'Actual Disease (1)'],
+                    annot_kws={"size": 14, "weight": "bold"})
+        _ax.set_title(f'Confusion Matrix: {name}', pad=15, weight='bold')
+        plt.tight_layout()
+
+        # Marimo UI
+        return mo.vstack([
+            mo.md(f"## Model Evaluation: {name}"),
+            mo.md(f"**ROC-AUC Score:** `{roc_auc:.3f}` Closer to 1 is better"),
+            mo.md(f"### 📊 Classification Report:\n```text\n{report}\n```"),
+            _fig
+        ])
+    return (evaluate_model,)
+
+
+@app.cell
+def _(
+    LogisticRegression,
+    X_test_scaled,
+    X_train_scaled,
+    evaluate_model,
+    y_test,
+    y_train,
+):
+    # Logistic Regression
+    log_reg = LogisticRegression(random_state=42, class_weight='balanced')
+
+    # Call the func
+    log_reg_results = evaluate_model(
+        model=log_reg, 
+        name="Logistic Regression (Baseline)", 
+        X_train=X_train_scaled, 
+        X_test=X_test_scaled, 
+        y_train=y_train, 
+        y_test=y_test
     )
 
-    # Output the size of resulting sets
-    mo.md(f"Training samples - {X_train.shape[0]}, Test samples - {X_test.shape[0]}")
-    return X_test, X_train, y_test, y_train
+    log_reg_results
+    return
+
+
+@app.cell
+def _(
+    GradientBoostingClassifier,
+    RandomForestClassifier,
+    SVC,
+    X_test_scaled,
+    X_train_scaled,
+    evaluate_model,
+    mo,
+    y_test,
+    y_train,
+):
+    # Random Forest
+    rf_model = RandomForestClassifier(random_state=42, class_weight='balanced')
+    rf_results = evaluate_model(
+        model=rf_model, 
+        name="Random Forest", 
+        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
+    )
+
+    # Support Vector Machine (SVC)
+    svm_model = SVC(probability=True, random_state=42, class_weight='balanced')
+    svm_results = evaluate_model(
+        model=svm_model, 
+        name="Support Vector Machine (SVC)", 
+        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
+    )
+
+    # Gradient Boosting 
+    gb_model = GradientBoostingClassifier(random_state=42)
+    gb_results = evaluate_model(
+        model=gb_model, 
+        name="Gradient Boosting", 
+        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
+    )
+
+    # All three model results
+    mo.vstack([
+        mo.md("## Baseline Comparison"),
+        rf_results,
+        mo.md("---"),
+        svm_results,
+        mo.md("---"),
+        gb_results
+    ])
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md("""
+    ### Baseline Conclusion: The Power of Simplicity
+    * **Observation:** Against expectations, the simplest model (Logistic Regression) outperformed complex ensemble methods (Random Forest, Gradient Boosting) and SVC out-of-the-box, achieving the highest Recall (82%) and ROC-AUC (0.887).
+    * **The "Why" (Occam's Razor):** Our dataset is relatively small (~300 records). In such cases, highly complex models tend to overfit the training data and generalize poorly on unseen data when using default parameters. Linear models like Logistic Regression are much more robust and stable here.
+    * **Next Step (Hypothesis):** Can hyperparameter tuning "wake up" the complex models? We will now use `GridSearchCV` to optimize both Logistic Regression and Random Forest specifically for **Recall**, to see if we can catch those remaining 6 false negative patients.
+    """)
+    return
 
 
 @app.cell
 def _(
     GridSearchCV,
     LogisticRegression,
-    Pipeline,
-    RepeatedStratifiedKFold,
-    StandardScaler,
-    X_train,
+    RandomForestClassifier,
+    X_test_scaled,
+    X_train_scaled,
+    evaluate_model,
+    mo,
+    y_test,
     y_train,
 ):
-    # Modelling: Logistic Regression & Grid Search
+    # Hyperparameter Tuning via GridSearchCV (Optimizing for Recall)
 
-    # Create Pipeline: Combines StandardScaler and the model
-    pipeline = Pipeline([
-        ('scaler', StandardScaler()), 
-        ('model', LogisticRegression(max_iter=1000, random_state=42))
-    ])
-    # hyperparameter grid
-    param_grid = {
-        'model__C': [0.01, 0.1, 1, 10, 100],
-        'model__solver': ['liblinear', 'lbfgs'] 
+    # Logistic Regression
+    log_param_grid = {
+        'C': [0.01, 0.1, 1, 10, 100],
+        'class_weight': ['balanced']
     }
 
-    cv_strategy = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=42)
-
-    # GridSearchCV focusing on 'recall' metric
-    grid_search = GridSearchCV(
-        estimator=pipeline,
-        param_grid=param_grid,
-        cv=cv_strategy,
-        scoring='recall', 
+    # Init GridSearch (Focus on Recall!)
+    log_grid = GridSearchCV(
+        LogisticRegression(random_state=42), 
+        log_param_grid, 
+        cv=5,
+        scoring='recall',
         n_jobs=-1
     )
 
-    # Fitting model
-    grid_search.fit(X_train, y_train)
-    return cv_strategy, grid_search
+    # Training
+    log_grid.fit(X_train_scaled, y_train)
+    best_log_model = log_grid.best_estimator_
 
-
-@app.cell
-def _(grid_search, mo):
-    # Extract the best model, parameters, and score
-    best_model = grid_search.best_estimator_
-    best_params = grid_search.best_params_
-    best_score = grid_search.best_score_
-
-    mo.vstack([
-        mo.md(f"### 🏆 Best Model Parameters"),
-        mo.md(f"**C:** `{best_params['model__C']}` | **Solver:** `{best_params['model__solver']}`"),
-        mo.md(f"**Mean Recall (CV):** `{best_score:.2%}`")])
-    return (best_model,)
-
-
-@app.cell
-def _(X_train, best_model, mo, pd):
-    # Features Importance
-    coefs = best_model.named_steps['model'].coef_[0]
-    features = X_train.columns
-
-    importance_df = pd.DataFrame({
-        'Feature': features,
-        'Importance': coefs
-    }).sort_values(by='Importance', ascending=False)
-
-    mo.vstack([
-        mo.md("### 🔍 Feature Importance"),
-        mo.ui.table(importance_df)
-    ])
-    return
-
-
-@app.cell
-def _(
-    ConfusionMatrixDisplay,
-    X_test,
-    classification_report,
-    confusion_matrix,
-    grid_search,
-    mo,
-    pd,
-    y_test,
-):
-    # predict on test data (LogisticRegression)
-    y_pred = grid_search.predict(X_test)
-
-    test_report = classification_report(y_test, y_pred, output_dict=True)
-    test_report_df = pd.DataFrame(test_report).transpose()
-
-    # Conf Matrix
-    cm = confusion_matrix(y_test, y_pred)
-
-    mo.vstack([
-        mo.md("## Final Evaluation on Test Data"),
-        mo.md(f"**Final Recall (Test):** `{test_report['1']['recall']:.2%}`"),
-        mo.md("### Metrics"),
-        mo.ui.table(test_report_df),    
-        mo.md("### Confusion Matrix"),
-        mo.as_html(ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Healthy", "Sick"]).plot().figure_)
-    ])
-    return (y_pred,)
-
-
-@app.cell
-def _(X_test, grid_search, mo, plt, roc_auc_score, roc_curve, y_test):
-    y_scores = grid_search.predict_proba(X_test)[:, 1]
-
-    # Calc ROC curve and AUC score
-    fpr, tpr, thresholds = roc_curve(y_test, y_scores)
-    auc_value = roc_auc_score(y_test, y_scores)
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {auc_value:.2f})')
-    ax.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-    ax.set_xlabel('False Positive Rate (1 - Specificity)')
-    ax.set_ylabel('True Positive Rate (Recall)')
-    ax.set_title('Receiver Operating Characteristic (ROC)')
-    ax.legend(loc="lower right")
-    ax.grid(alpha=0.3)
-
-    mo.vstack([
-        mo.md(f"AUC-ROC Score: `{auc_value:.4f}`"),
-        mo.as_html(fig)
-    ])
-    return
-
-
-@app.cell
-def _(X_test, mo, y_pred, y_test):
-    # Error Analysis
-    comp_df = X_test.copy()
-    comp_df['Actual'] = y_test
-    comp_df['Predicted'] = y_pred
-
-    # Filter out rows where the prediction does not match the actual target
-    errors = comp_df[comp_df['Actual'] != comp_df['Predicted']]
-
-    mo.vstack([
-        mo.md(f"## Error Analysis: Where did the model fail?"),
-
-        # Display the number of errors vs total test samples
-        mo.md(f"The model made **{len(errors)}** errors out of {len(y_test)} samples."),
-        mo.ui.table(errors),
-
-        mo.md("Look for patterns in these patients. For example, do they all have low `thalach` or high `age`? This shows what kind of data the model struggles with."),
-    ])
-    return
-
-
-@app.cell
-def _(
-    GridSearchCV,
-    KNeighborsClassifier,
-    Pipeline,
-    RandomForestClassifier,
-    StandardScaler,
-    X_train,
-    cv_strategy,
-    mo,
-    pd,
-    y_train,
-):
-    # Try other models
-    other_models = {
-        "Random_Forest": {
-            "instance": RandomForestClassifier(random_state=42),
-            "grid": {
-                "model__n_estimators": [100, 200],
-                "model__max_depth": [5, 10, None]
-            }
-        },
-        "k-NN": {
-            "instance": KNeighborsClassifier(),
-            "grid": {
-                "model__n_neighbors": [5, 7, 11],
-                "model__weights": ["uniform", "distance"]
-            }
-        }
+    # Random Forest
+    rf_param_grid = {
+        'n_estimators': [50, 100, 200],
+        'max_depth': [3, 5, 10, None],
+        'min_samples_split': [2, 5, 10],
+        'class_weight': ['balanced', 'balanced_subsample']
     }
 
-    results = []
-
-    for name, config in other_models.items():
-        pipe = Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", config["instance"])
-        ])
-
-        search = GridSearchCV(
-        estimator=pipe,
-        param_grid=config["grid"],
-        cv=cv_strategy, 
-        scoring="recall",
+    rf_grid = GridSearchCV(
+        RandomForestClassifier(random_state=42), 
+        rf_param_grid, 
+        cv=5, 
+        scoring='recall',
         n_jobs=-1
-        )
+    )
 
-        search.fit(X_train, y_train)
+    rf_grid.fit(X_train_scaled, y_train)
+    best_rf_model = rf_grid.best_estimator_
 
-        results.append({
-            "model": name,
-            "best_Recall": f"{search.best_score_:.2%}",
-            "parameters": search.best_params_
-        })
+    # Evaluating the Tuned models
+    tuned_log_results = evaluate_model(
+        model=best_log_model, 
+        name=f"Tuned Logistic Regression (Best C: {log_grid.best_params_['C']})", 
+        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
+    )
 
-    final_comparison = pd.DataFrame(results)
-    mo.ui.table(final_comparison)
+    tuned_rf_results = evaluate_model(
+        model=best_rf_model, 
+        name=f"Tuned Random Forest (Best Depth: {rf_grid.best_params_['max_depth']})", 
+        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
+    )
+
+    mo.vstack([
+        mo.md("## Hyperparameter Tuning Results (Optimized for Recall)"),
+        tuned_log_results,
+        mo.md("---"),
+        tuned_rf_results
+    ])
+    return (best_log_model,)
+
+
+@app.cell
+def _(mo):
+    mo.md("""
+    ### Final Conclusion: Winning with GridSearchCV
+
+    * **Tuned Logistic Regression** (with `C=10`) is the absolute winner. By optimizing for Recall, we successfully increased our primary metric from 82% to **85%** and pushed the ROC-AUC score to an excellent **0.900**.
+    * **Clinical Impact:** In a medical context, this improvement is critical. We successfully identified an additional complex disease case, reducing our False Negatives from 6 down to 5.
+    * **The "Small Data" Reality:** Despite hyperparameter tuning, the Random Forest classifier could not surpass the baseline Recall (staying at 82%) and performed worse on the ROC-AUC metric (0.852). This perfectly validates our earlier hypothesis: on small tabular datasets (~300 records), well-tuned linear models often outperform complex tree-based ensembles by preventing overfitting.
+    """)
+    return
+
+
+@app.cell
+def _(best_log_model, mo, pd, plt, preprocessor, sns):
+    # Extracting feature names from the preprocessor
+    feature_names = preprocessor.get_feature_names_out()
+
+    # Extracting coefficients from our champion model
+    coefficients = best_log_model.coef_[0]
+
+    # Creating a DataFrame and sorting descending
+    feature_importance_df = pd.DataFrame({
+        'Feature': feature_names,
+        'Importance': coefficients
+    }).sort_values(by='Importance', ascending=False)
+
+    # Plotting
+    _fig, _ax = plt.subplots(figsize=(8, 6))
+
+    # Color logic: Positive (Red/Danger), Negative (Blue/Safe)
+    colors = ['#e74c3c' if x > 0 else '#3498db' for x in feature_importance_df['Importance']]
+
+    sns.barplot(x='Importance', y='Feature', data=feature_importance_df, palette=colors, hue='Feature', legend=False, ax=_ax)
+    _ax.set_title('Feature Importance (Tuned Logistic Regression)', weight='bold', size=14, pad=15)
+    _ax.set_xlabel('Coefficient Value (Impact on Disease Probability)', weight='bold')
+    _ax.set_ylabel('Patient Features', weight='bold')
+    _ax.axvline(0, color='black', linestyle='--', linewidth=1)
+    plt.tight_layout()
+
+    # Output in Marimo
+    mo.vstack([
+        mo.md("""
+        ## 🧠 How Does the Model Think?
+    
+    
+        * **Red Bars (Positive > 0):** These features **increase** the probability of heart disease. The longer the bar, the more dangerous the symptom.
+        * **Blue Bars (Negative < 0):** These features **decrease** the probability (indicate a healthier patient).
+        """),
+        _fig
+    ])
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(f"""
-    # 🏆 Project Verdict
-    After rigorous testing, **Logistic Regression** emerged as the champion model for this project!
-    * Despite experimenting with more complex algorithms like Random Forest and k-NN, Logistic Regression achieved the highest **Recall (88.94%)**.
-    * This proves that for small medical datasets, simpler linear models often provide better stability and generalization, effectively avoiding overfitting.
+    mo.md("""
+    ### Project Conclusion & Business Value
+
+    We extracted the underlying logic of our champion model (Tuned Logistic Regression). The model aligns perfectly with medical intuition:
+
+    * **Primary Risk Factors:** Different types of chest pain (`cp_3`, `cp_2`, `cp_1`) are the strongest indicators pushing the model to predict the presence of heart disease.
+    * **Health Indicators:** Certain fluoroscopy results (e.g., `ca_2`) act as the strongest negative coefficients, heavily reducing the probability of disease.
     """)
     return
 
