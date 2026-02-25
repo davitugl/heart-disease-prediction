@@ -33,6 +33,7 @@ def _():
         precision_recall_curve,
         roc_auc_score,
         roc_curve,
+        RocCurveDisplay
     )
     return (
         ColumnTransformer,
@@ -41,6 +42,7 @@ def _():
         LogisticRegression,
         OneHotEncoder,
         RandomForestClassifier,
+        RocCurveDisplay,
         SVC,
         StandardScaler,
         classification_report,
@@ -734,6 +736,37 @@ def _(
 
 
 @app.cell
+def _(RocCurveDisplay, X_test_scaled, best_log_model, mo, plt, y_test):
+    # Plotting the ROC Curve to visualize model dynamics
+    _fig_roc, _ax_roc = plt.subplots(figsize=(8, 6))
+
+    RocCurveDisplay.from_estimator(
+        best_log_model, 
+        X_test_scaled, 
+        y_test, 
+        name="Tuned Logistic Regression",
+        curve_kwargs={"color": "darkorange", "linewidth": 2},
+        ax=_ax_roc
+    )
+
+    _ax_roc.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--", label="Random Guess (AUC = 0.5)")
+
+    _ax_roc.set_title("(ROC) Curve", weight="bold", size=14, pad=15)
+    _ax_roc.set_xlabel("FP Rate (1 - Specificity)", weight="bold")
+    _ax_roc.set_ylabel("TP Rate (Recall / Sensitivity)", weight="bold")
+    _ax_roc.legend(loc="lower right")
+    _ax_roc.grid(alpha=0.3)
+
+    mo.vstack([
+        mo.md("""
+        ### 📈 ROC Curve
+        """),
+        _fig_roc
+    ])
+    return
+
+
+@app.cell
 def _(mo):
     mo.md("""
     ### Final Conclusion: Winning with GridSearchCV
@@ -776,8 +809,8 @@ def _(best_log_model, mo, pd, plt, preprocessor, sns):
     mo.vstack([
         mo.md("""
         ## 🧠 How Does the Model Think?
-    
-    
+
+
         * **Red Bars (Positive > 0):** These features **increase** the probability of heart disease. The longer the bar, the more dangerous the symptom.
         * **Blue Bars (Negative < 0):** These features **decrease** the probability (indicate a healthier patient).
         """),
