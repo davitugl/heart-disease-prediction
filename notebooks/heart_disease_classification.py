@@ -1,7 +1,15 @@
 import marimo
 
 __generated_with = "0.19.6"
-app = marimo.App(width="medium")
+app = marimo.App(width="full")
+
+
+@app.cell
+def _(mo):
+    mo.md("""
+    # 🫀 Heart Disease Prediction Project
+    """)
+    return
 
 
 @app.cell
@@ -12,17 +20,17 @@ def _():
     import numpy as np
     import pandas as pd
     import seaborn as sns
+    import shap
 
     # Sklearn: Model Selection and Preprocessing
     from sklearn.compose import ColumnTransformer
-    from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, train_test_split
+    from sklearn.model_selection import GridSearchCV, train_test_split, cross_validate
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
     # Sklearn: Machine Learning Models
     from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
     from sklearn.linear_model import LogisticRegression
-    from sklearn.neighbors import KNeighborsClassifier
     from sklearn.svm import SVC
 
     # Sklearn: Metrics and Evaluation
@@ -33,25 +41,25 @@ def _():
         precision_recall_curve,
         roc_auc_score,
         roc_curve,
-        RocCurveDisplay
+        RocCurveDisplay,
     )
     return (
         ColumnTransformer,
+        ConfusionMatrixDisplay,
         GradientBoostingClassifier,
         GridSearchCV,
         LogisticRegression,
-        OneHotEncoder,
+        Pipeline,
         RandomForestClassifier,
         RocCurveDisplay,
-        SVC,
         StandardScaler,
         classification_report,
-        confusion_matrix,
+        cross_validate,
         mo,
         np,
         pd,
         plt,
-        roc_auc_score,
+        shap,
         sns,
         train_test_split,
     )
@@ -94,7 +102,7 @@ def _(heart_df, mo):
     rows, columns = heart_df.shape
     mo.vstack([
         mo.md("## 🫀 Heart Disease Prediction Project"),
-        mo.md(f"### Total Records: {rows} | Total Columns: {columns}"),
+        mo.md(f"### Total Records: **{rows}** | Total Columns: **{columns}**"),
         mo.ui.table(
             heart_df,
             label="Anonymous Patient Data",
@@ -114,8 +122,8 @@ def _(heart_df, mo, pd):
 
     mo.vstack([
         mo.md("## 🔍 Check Data Quality"),
-        mo.md(f""" ### Duplicates: {duplicate_count}"""),
-        mo.md(f""" ### Missing Values: {missing_values.sum()}"""),
+        mo.md(f""" ### Duplicates: **{duplicate_count}**"""),
+        mo.md(f""" ### Missing Values: **{missing_values.sum()}**"""),
         mo.ui.table(pd.DataFrame({"Data Type": heart_df.dtypes.astype(str), "Unique Values": heart_df.nunique() 
     }), selection=None)
     ])
@@ -143,7 +151,7 @@ def _(heart_df_clean, mo, pd, plt, sns):
     # PLOT
     fig, ax = plt.subplots(figsize=(5, 6))
 
-    sns.countplot(x='target', data=heart_df_clean, palette=['#3498db', '#e74c3c'], hue='target', ax=ax)
+    sns.countplot(x='target', data=heart_df_clean, palette=['#3498db', '#e74c3c'], hue='target', ax=ax, legend=False)
 
     ax.set_title("Visual Balance (0 vs 1)")
     ax.set_xlabel("Diagnosis (0=Healthy, 1=Disease)")
@@ -496,338 +504,251 @@ def _(mo):
 
 
 @app.cell
-def _(
-    ColumnTransformer,
-    OneHotEncoder,
-    StandardScaler,
-    heart_df_clean,
-    mo,
-    train_test_split,
-):
-    # Data Preprocessing Pipeline: Train/Test Split, Scaling, One-Hot Encoding (Preventing Data Leakage)
+def _(ColumnTransformer, StandardScaler, heart_df_clean, train_test_split):
+    # Train/Test Split, Scaling
     X = heart_df_clean.drop('target', axis=1)
     y = heart_df_clean['target']
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, 
-        test_size=0.2, 
-        random_state=42, 
-        stratify=y 
+        X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    numeric_features = ['age', 'trestbps', 'chol', 'thalach', 'oldpeak']
-    categorical_features = ['cp', 'restecg', 'slope', 'ca', 'thal']
-    binary_features = ['sex', 'fbs', 'exang'] 
+    numeric_features = [
+        'age', 'trestbps', 'chol', 'thalach', 'oldpeak'
+    ]
 
-    # ColumnTransformer
+    # categorical and binary features
+    passthrough_features = [
+        'sex', 'cp', 'fbs', 'restecg', 'exang', 'slope', 'ca', 'thal'
+    ]
+
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', StandardScaler(), numeric_features),
-            ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), categorical_features),
-            ('bin', 'passthrough', binary_features)
-        ]
+            ('pass', 'passthrough', passthrough_features)
+        ],
+        verbose_feature_names_out=False
     )
 
-    # Fit only on Train!
-    X_train_scaled = preprocessor.fit_transform(X_train)
-    X_test_scaled = preprocessor.transform(X_test)
-
-    mo.md(f"""
-    ### ⚙️ Data Preprocessing Pipeline!
-    * **Steps:** Train/Test Split -> StandardScaler -> OneHotEncoder
-    * **Training Data:** {X_train_scaled.shape}
-    * **Testing Data:** {X_test_scaled.shape}
-    """)
-    return X_test_scaled, X_train_scaled, preprocessor, y_test, y_train
-
-
-@app.cell
-def _(classification_report, confusion_matrix, mo, plt, roc_auc_score, sns):
-    # Create a universal function to evaluate any model!
-    def evaluate_model(model, name, X_train, X_test, y_train, y_test):
-        # Training (Fit)
-        model.fit(X_train, y_train)
-
-        # Predict on Test set
-        y_pred = model.predict(X_test)
-        y_prob = model.predict_proba(X_test)[:, 1]
-
-        # Calculate statistics
-        roc_auc = roc_auc_score(y_test, y_prob)
-        report = classification_report(y_test, y_pred)
-
-        # Confusion Matrix
-        cm = confusion_matrix(y_test, y_pred)
-        _fig, _ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False, ax=_ax,
-                    xticklabels=['Predicted Healthy (0)', 'Predicted Disease (1)'], 
-                    yticklabels=['Actual Healthy (0)', 'Actual Disease (1)'],
-                    annot_kws={"size": 14, "weight": "bold"})
-        _ax.set_title(f'Confusion Matrix: {name}', pad=15, weight='bold')
-        plt.tight_layout()
-
-        # Marimo UI
-        return mo.vstack([
-            mo.md(f"## Model Evaluation: {name}"),
-            mo.md(f"**ROC-AUC Score:** `{roc_auc:.3f}` Closer to 1 is better"),
-            mo.md(f"### 📊 Classification Report:\n```text\n{report}\n```"),
-            _fig
-        ])
-    return (evaluate_model,)
-
-
-@app.cell
-def _(
-    LogisticRegression,
-    X_test_scaled,
-    X_train_scaled,
-    evaluate_model,
-    y_test,
-    y_train,
-):
-    # Logistic Regression
-    log_reg = LogisticRegression(random_state=42, class_weight='balanced')
-
-    # Call the func
-    log_reg_results = evaluate_model(
-        model=log_reg, 
-        name="Logistic Regression (Baseline)", 
-        X_train=X_train_scaled, 
-        X_test=X_test_scaled, 
-        y_train=y_train, 
-        y_test=y_test
-    )
-
-    log_reg_results
-    return
+    preprocessor.set_output(transform="pandas")
+    return X_test, X_train, preprocessor, y_test, y_train
 
 
 @app.cell
 def _(
     GradientBoostingClassifier,
+    LogisticRegression,
+    Pipeline,
     RandomForestClassifier,
-    SVC,
-    X_test_scaled,
-    X_train_scaled,
-    evaluate_model,
+    X_train,
+    cross_validate,
     mo,
-    y_test,
+    np,
+    pd,
+    preprocessor,
     y_train,
 ):
-    # Random Forest
-    rf_model = RandomForestClassifier(random_state=42, class_weight='balanced')
-    rf_results = evaluate_model(
-        model=rf_model, 
-        name="Random Forest", 
-        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
-    )
+    # Models and Pipeline
+    models = {
+        'LogReg': LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42),
+        'RandomForest': RandomForestClassifier(random_state=42, class_weight='balanced'),
+        'Gradient Boosting': GradientBoostingClassifier(random_state=42)
+    }
 
-    # Support Vector Machine (SVC)
-    svm_model = SVC(probability=True, random_state=42, class_weight='balanced')
-    svm_results = evaluate_model(
-        model=svm_model, 
-        name="Support Vector Machine (SVC)", 
-        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
-    )
+    scoring_metrics = ['roc_auc', 'accuracy', 'precision', 'recall', 'f1']
 
-    # Gradient Boosting 
-    gb_model = GradientBoostingClassifier(random_state=42)
-    gb_results = evaluate_model(
-        model=gb_model, 
-        name="Gradient Boosting", 
-        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
-    )
+    model_comparison = []
 
-    # All three model results
-    mo.vstack([
-        mo.md("## Baseline Comparison"),
-        rf_results,
-        mo.md("---"),
-        svm_results,
-        mo.md("---"),
-        gb_results
-    ])
-    return
+    for name, model in models.items():
 
+        pipeline = Pipeline(steps=[
+            ('preprocessor', preprocessor),
+            ('classifier', model)
+        ])
 
-@app.cell
-def _(mo):
-    mo.md("""
-    ### Baseline Conclusion: The Power of Simplicity
-    * **Observation:** Against expectations, the simplest model (Logistic Regression) outperformed complex ensemble methods (Random Forest, Gradient Boosting) and SVC out-of-the-box, achieving the highest Recall (82%) and ROC-AUC (0.887).
-    * **The "Why" (Occam's Razor):** Our dataset is relatively small (~300 records). In such cases, highly complex models tend to overfit the training data and generalize poorly on unseen data when using default parameters. Linear models like Logistic Regression are much more robust and stable here.
-    * **Next Step (Hypothesis):** Can hyperparameter tuning "wake up" the complex models? We will now use `GridSearchCV` to optimize both Logistic Regression and Random Forest specifically for **Recall**, to see if we can catch those remaining 6 false negative patients.
-    """)
+        cv_results = cross_validate(
+            pipeline, 
+            X_train, 
+            y_train, 
+            cv=5, 
+            scoring=scoring_metrics,
+            n_jobs=-1
+        )
+
+        model_comparison.append({
+            'Model': name, 
+            'Recall': np.mean(cv_results['test_recall']),
+            'ROC-AUC': np.mean(cv_results['test_roc_auc']),
+            'Accuracy': np.mean(cv_results['test_accuracy']),
+            'Precision': np.mean(cv_results['test_precision']),
+            'F1-Score': np.mean(cv_results['test_f1'])
+        })
+
+    results_df = pd.DataFrame(model_comparison).sort_values('Recall', ascending=False)
+
+    mo.ui.table(results_df.round(4))
     return
 
 
 @app.cell
 def _(
     GridSearchCV,
-    LogisticRegression,
+    Pipeline,
     RandomForestClassifier,
-    X_test_scaled,
-    X_train_scaled,
-    evaluate_model,
+    X_train,
     mo,
-    y_test,
+    preprocessor,
     y_train,
 ):
-    # Hyperparameter Tuning via GridSearchCV (Optimizing for Recall)
+    # Hyperparameter Tuning via GridSearchCV 
 
-    # Logistic Regression
-    log_param_grid = {
-        'C': [0.01, 0.1, 1, 10, 100],
-        'class_weight': ['balanced']
-    }
-
-    # Init GridSearch (Focus on Recall!)
-    log_grid = GridSearchCV(
-        LogisticRegression(random_state=42), 
-        log_param_grid, 
-        cv=5,
-        scoring='recall',
-        n_jobs=-1
-    )
-
-    # Training
-    log_grid.fit(X_train_scaled, y_train)
-    best_log_model = log_grid.best_estimator_
-
-    # Random Forest
-    rf_param_grid = {
-        'n_estimators': [50, 100, 200],
-        'max_depth': [3, 5, 10, None],
-        'min_samples_split': [2, 5, 10],
-        'class_weight': ['balanced', 'balanced_subsample']
-    }
-
-    rf_grid = GridSearchCV(
-        RandomForestClassifier(random_state=42), 
-        rf_param_grid, 
-        cv=5, 
-        scoring='recall',
-        n_jobs=-1
-    )
-
-    rf_grid.fit(X_train_scaled, y_train)
-    best_rf_model = rf_grid.best_estimator_
-
-    # Evaluating the Tuned models
-    tuned_log_results = evaluate_model(
-        model=best_log_model, 
-        name=f"Tuned Logistic Regression (Best C: {log_grid.best_params_['C']})", 
-        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
-    )
-
-    tuned_rf_results = evaluate_model(
-        model=best_rf_model, 
-        name=f"Tuned Random Forest (Best Depth: {rf_grid.best_params_['max_depth']})", 
-        X_train=X_train_scaled, X_test=X_test_scaled, y_train=y_train, y_test=y_test
-    )
-
-    mo.vstack([
-        mo.md("## Hyperparameter Tuning Results (Optimized for Recall)"),
-        tuned_log_results,
-        mo.md("---"),
-        tuned_rf_results
+    # Re-initializing the pipeline
+    random_forest_pipeline = Pipeline(steps=[
+        ('preprocessor', preprocessor),
+        ('classifier', RandomForestClassifier(random_state=42, class_weight='balanced'))
     ])
-    return (best_log_model,)
+
+    param_grid = {
+        'classifier__n_estimators': [100, 200, 300],
+        'classifier__max_depth': [None, 10, 20],
+        'classifier__min_samples_split': [2, 5, 10],
+        'classifier__criterion': ['gini', 'entropy']
+    }
+
+    grid_search = GridSearchCV(
+        estimator=random_forest_pipeline,
+        param_grid=param_grid,
+        cv=5,                
+        scoring='roc_auc',
+        n_jobs=-1,
+        verbose=1
+    )
+
+    # model training
+    grid_search.fit(X_train, y_train)
+
+    best_rf_model = grid_search.best_estimator_
+    best_params = grid_search.best_params_
+
+    mo.md(f"""
+    ### Optimization Results
+    * **Best ROC-AUC:** `{grid_search.best_score_:.2%}`
+    * **Estimators:** `{best_params['classifier__n_estimators']}`
+    * **Max Depth:** `{best_params['classifier__max_depth']}`
+    """)
+    return (grid_search,)
 
 
 @app.cell
-def _(RocCurveDisplay, X_test_scaled, best_log_model, mo, plt, y_test):
-    # Plotting the ROC Curve to visualize model dynamics
-    _fig_roc, _ax_roc = plt.subplots(figsize=(8, 6))
+def _(
+    ConfusionMatrixDisplay,
+    RocCurveDisplay,
+    X_test,
+    classification_report,
+    grid_search,
+    mo,
+    plt,
+    y_test,
+):
+    # Predictions on test data. Confussion Matrix, Roc Curve
+    y_pred = grid_search.predict(X_test)
+    report = classification_report(y_test, y_pred, target_names=['Healthy', 'Heart Disease'])
+
+    fig_eval, ax_eval = plt.subplots(1, 2, figsize=(14, 5))
+
+    ConfusionMatrixDisplay.from_estimator(
+        grid_search, X_test, y_test, 
+        display_labels=['Healthy', 'Heart Disease'],
+        cmap='Blues', ax=ax_eval[0]
+    )
+    ax_eval[0].set_title("Confusion Matrix")
 
     RocCurveDisplay.from_estimator(
-        best_log_model, 
-        X_test_scaled, 
-        y_test, 
-        name="Tuned Logistic Regression",
-        curve_kwargs={"color": "darkorange", "linewidth": 2},
-        ax=_ax_roc
+        grid_search, X_test, y_test, ax=ax_eval[1]
     )
-
-    _ax_roc.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--", label="Random Guess (AUC = 0.5)")
-
-    _ax_roc.set_title("(ROC) Curve", weight="bold", size=14, pad=15)
-    _ax_roc.set_xlabel("FP Rate (1 - Specificity)", weight="bold")
-    _ax_roc.set_ylabel("TP Rate (Recall / Sensitivity)", weight="bold")
-    _ax_roc.legend(loc="lower right")
-    _ax_roc.grid(alpha=0.3)
+    ax_eval[1].set_title("ROC Curve Analysis")
+    ax_eval[1].grid(True, linestyle='--', alpha=0.6)
 
     mo.vstack([
-        mo.md("""
-        ### 📈 ROC Curve
-        """),
-        _fig_roc
+        mo.md("## 🩺 Model Evaluation on Test Set"),
+        mo.md(f"```\n{report}\n```"),
+        mo.as_html(fig_eval)
     ])
     return
 
 
 @app.cell
 def _(mo):
-    mo.md("""
-    ### Final Conclusion: Winning with GridSearchCV
-
-    * **Tuned Logistic Regression** (with `C=10`) is the absolute winner. By optimizing for Recall, we successfully increased our primary metric from 82% to **85%** and pushed the ROC-AUC score to an excellent **0.900**.
-    * **Clinical Impact:** In a medical context, this improvement is critical. We successfully identified an additional complex disease case, reducing our False Negatives from 6 down to 5.
-    * **The "Small Data" Reality:** Despite hyperparameter tuning, the Random Forest classifier could not surpass the baseline Recall (staying at 82%) and performed worse on the ROC-AUC metric (0.852). This perfectly validates our earlier hypothesis: on small tabular datasets (~300 records), well-tuned linear models often outperform complex tree-based ensembles by preventing overfitting.
+    mo.md(f"""
+    The model is good: **80% accuracy** and, more importantly, **91% recall**. The risk of missing a case is minimal.
     """)
     return
 
 
 @app.cell
-def _(best_log_model, mo, pd, plt, preprocessor, sns):
-    # Extracting feature names from the preprocessor
-    feature_names = preprocessor.get_feature_names_out()
+def _(grid_search, mo, pd, plt):
+    # Feature Importance 
 
-    # Extracting coefficients from our champion model
-    coefficients = best_log_model.coef_[0]
+    names = grid_search.best_estimator_['preprocessor'].get_feature_names_out()
+    importances = grid_search.best_estimator_['classifier'].feature_importances_
 
-    # Creating a DataFrame and sorting descending
-    feature_importance_df = pd.DataFrame({
-        'Feature': feature_names,
-        'Importance': coefficients
-    }).sort_values(by='Importance', ascending=False)
+    top_features = pd.Series(importances, index=names).sort_values(ascending=False).head(10)
 
-    # Plotting
-    _fig, _ax = plt.subplots(figsize=(8, 6))
+    fig_imp, ax_imp = plt.subplots(figsize=(10, 6))
 
-    # Color logic: Positive (Red/Danger), Negative (Blue/Safe)
-    colors = ['#e74c3c' if x > 0 else '#3498db' for x in feature_importance_df['Importance']]
+    top_features.sort_values().plot(kind='barh', color='steelblue', ax=ax_imp)
 
-    sns.barplot(x='Importance', y='Feature', data=feature_importance_df, palette=colors, hue='Feature', legend=False, ax=_ax)
-    _ax.set_title('Feature Importance (Tuned Logistic Regression)', weight='bold', size=14, pad=15)
-    _ax.set_xlabel('Coefficient Value (Impact on Disease Probability)', weight='bold')
-    _ax.set_ylabel('Patient Features', weight='bold')
-    _ax.axvline(0, color='black', linestyle='--', linewidth=1)
+    ax_imp.set_title("Top 10 Most Important Features (Random Forest)")
+    ax_imp.set_xlabel("Gini Importance (Relative Weight)")
     plt.tight_layout()
 
-    # Output in Marimo
     mo.vstack([
-        mo.md("""
-        ## 🧠 How Does the Model Think?
+        mo.md("### **Feature Importance**"),
+        mo.as_html(fig_imp)
+    ])
+    return
 
 
-        * **Red Bars (Positive > 0):** These features **increase** the probability of heart disease. The longer the bar, the more dangerous the symptom.
-        * **Blue Bars (Negative < 0):** These features **decrease** the probability (indicate a healthier patient).
-        """),
-        _fig
+@app.cell
+def _(X_test, grid_search, mo, plt, shap):
+    # SHAP Explainer
+
+    heart_model = grid_search.best_estimator_['classifier']
+    transformed_data = grid_search.best_estimator_['preprocessor'].transform(X_test)
+
+    explainer = shap.TreeExplainer(heart_model)
+    shap_values_raw = explainer.shap_values(transformed_data)
+
+    if isinstance(shap_values_raw, list):
+        final_shap_values = shap_values_raw[1]
+    else:
+        final_shap_values = shap_values_raw[..., 1] if len(shap_values_raw.shape) == 3 else shap_values_raw
+    
+    plt.figure(figsize=(10, 6))
+    shap.summary_plot(final_shap_values, transformed_data, show=False)
+    plt.title("SHAP Interpretation: Impact on Heart Disease Diagnosis", fontsize=14)
+    plt.tight_layout()
+
+    mo.vstack([
+        mo.md("### **🧬 Explaining Model Decisions**"),
+        mo.as_html(plt.gcf())
     ])
     return
 
 
 @app.cell
 def _(mo):
+    # Model Interpretation
     mo.md("""
-    ### Project Conclusion & Business Value
+    # Final Conclusion: Model Interpretation
 
-    We extracted the underlying logic of our champion model (Tuned Logistic Regression). The model aligns perfectly with medical intuition:
+    * Each dot represents one patient. It shows the internal logic of the Random Forest.
+    * **How to read the results?**
+    1. **cp (Chest Pain):** Red dots are on the right — higher chest pain levels significantly increase the risk.
 
-    * **Primary Risk Factors:** Different types of chest pain (`cp_3`, `cp_2`, `cp_1`) are the strongest indicators pushing the model to predict the presence of heart disease.
-    * **Health Indicators:** Certain fluoroscopy results (e.g., `ca_2`) act as the strongest negative coefficients, heavily reducing the probability of disease.
+    2. **thalach (Max Heart Rate):** Red dots are on the left. High heart rate acts as a "protective factor," decreasing the probability of disease.
+
+    3. **oldpeak & ca:** High values (red) sharply increase the risk. These are the most "reliable" indicators for the model to detect danger.
     """)
     return
 
