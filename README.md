@@ -43,7 +43,7 @@ poetry install
 poetry run marimo edit notebooks/heart_disease_classification.py
 ```
 
-### 3. Export Standalone HTML Report
+### Export Standalone HTML Report
 ```bash
 echo y | poetry run marimo export html notebooks/heart_disease_classification.py -o index.html
 ```
