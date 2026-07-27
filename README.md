@@ -1,14 +1,14 @@
-# 🫀 Heart Disease Prediction & Classification
+# Heart Disease Prediction & Classification
 
 An enterprise-grade Data Science and Machine Learning project predicting the presence of heart disease using clinical patient attributes from the Cleveland dataset. 
 
 Given the critical nature of medical diagnosis, the primary objective of this project is to **maximize Recall**, ensuring high-risk patients are accurately identified and minimizing life-threatening False Negatives.
 
-👉 **[🚀 View Interactive Live Report](https://davitugl.github.io/heart-disease-prediction/)**
+[View Interactive Live Report](https://davitugl.github.io/heart-disease-prediction/)
 
 ---
 
-## 📊 Key Results & Performance Summary
+## Key Results & Performance Summary
 
 | Metric | Baseline CV | Tuned Model (GridSearchCV) | Holdout Test Set (`X_test`) |
 | :--- | :--- | :--- | :--- |
@@ -20,7 +20,7 @@ Given the critical nature of medical diagnosis, the primary objective of this pr
 
 ---
 
-## 🛠️ Project Architecture & Workflow
+## Project Architecture & Workflow
 
 1. **Exploratory Data Analysis (EDA):** Data profiling, target distribution analysis, clinical correlation heatmaps, and domain-specific feature analyses (`cp`, `thalach`, `oldpeak`, `ca`).
 2. **Modular Preprocessing Pipeline:** Integrated `ColumnTransformer` with `StandardScaler` for continuous features and `OneHotEncoder(handle_unknown='ignore')` for nominal categorical features.
@@ -31,7 +31,7 @@ Given the critical nature of medical diagnosis, the primary objective of this pr
 
 ---
 
-## 🚀 Environment & Usage
+## Environment & Usage
 
 ### 1. Install Dependencies with Poetry
 ```bash
@@ -50,6 +50,6 @@ echo y | poetry run marimo export html notebooks/heart_disease_classification.py
 
 ---
 
-## 🌐 Live Interactive Dashboard
+## Live Interactive Dashboard
 View the exported HTML report published on GitHub Pages:  
-**https://davitugl.github.io/heart-disease-prediction/**
+https://davitugl.github.io/heart-disease-prediction/
