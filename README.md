@@ -6,7 +6,9 @@ Given the critical nature of medical diagnosis, the primary objective of this pr
 
 [View Interactive Live Report](https://davitugl.github.io/heart-disease-prediction/)
 
----
+## Dataset Source
+**Dataset:** [Kaggle Heart Failure Prediction Dataset](https://www.kaggle.com/datasets/fedesoriano/heart-failure-prediction)
+
 
 ## Key Results & Performance Summary
 
@@ -18,7 +20,6 @@ Given the critical nature of medical diagnosis, the primary objective of this pr
 | **Recall (Optimal ~0.474)** | - | **95.42%** | **90.91%** |
 | **False Negatives** | - | Reduced | **3** (Out of 33 diseased cases) |
 
----
 
 ## Project Architecture & Workflow
 
@@ -29,16 +30,15 @@ Given the critical nature of medical diagnosis, the primary objective of this pr
 5. **Decision Threshold Optimization:** Lowered probability decision threshold from 0.50 to ~0.474 using Precision-Recall curve analysis to achieve **95%+ Recall**.
 6. **Model Explainability:** Applied `SHAP` (SHapley Additive exPlanations) for model interpretability, verifying top clinical feature drivers.
 
----
 
 ## Environment & Usage
 
-### 1. Install Dependencies with Poetry
+### Install Dependencies with Poetry
 ```bash
 poetry install
 ```
 
-### 2. Run the Interactive Marimo Notebook
+### Run the Interactive Marimo Notebook
 ```bash
 poetry run marimo edit notebooks/heart_disease_classification.py
 ```
@@ -47,9 +47,3 @@ poetry run marimo edit notebooks/heart_disease_classification.py
 ```bash
 echo y | poetry run marimo export html notebooks/heart_disease_classification.py -o index.html
 ```
-
----
-
-## Live Interactive Dashboard
-View the exported HTML report published on GitHub Pages:  
-https://davitugl.github.io/heart-disease-prediction/
